@@ -2,25 +2,30 @@ require('dotenv').config();
 const axios = require('axios');
 const fs = require('fs');
 
-// Daftar prompt contoh (bisa ditambahkan atau diubah)
-const prompts = [
-  "A futuristic city at night",
-  "A serene beach sunset",
-  "A mystical forest with glowing mushrooms",
-  "A steampunk airship in the sky",
-  "A cyberpunk street with neon lights",
-  "A medieval castle under a stormy sky",
-  "A desert oasis with palm trees",
-  "A snowy mountain peak at dawn",
-  "A vibrant underwater coral reef",
-  "A post-apocalyptic wasteland"
-];
-
-// Konfigurasi model hanya untuk SD2
-const model = {
+// Konfigurasi model
+const imageModel = {
   displayName: '🖼️ SD2',
   apiModelName: 'SD2'
 };
+
+const audioModel = {
+  displayName: '🔊 Melo TTS'
+};
+
+// Fungsi untuk membaca prompt dari prompt.txt dan memilih secara acak
+function getRandomPrompt() {
+  try {
+    const prompts = fs.readFileSync('prompt.txt', 'utf8').split('\n').filter(line => line.trim() !== '');
+    if (prompts.length === 0) {
+      console.error('Error: prompt.txt kosong atau tidak ada prompt valid.');
+      return "Default prompt"; // Fallback jika file kosong
+    }
+    return prompts[Math.floor(Math.random() * prompts.length)];
+  } catch (error) {
+    console.error('Error membaca prompt.txt:', error.message);
+    return "Default prompt"; // Fallback jika file tidak ada
+  }
+}
 
 // Fungsi untuk menghasilkan gambar
 async function generateImage(prompt, apiKey) {
@@ -30,7 +35,7 @@ async function generateImage(prompt, apiKey) {
     "Authorization": `Bearer ${apiKey}`
   };
   const data = {
-    model_name: model.apiModelName,
+    model_name: imageModel.apiModelName,
     prompt: prompt,
     steps: 30,
     cfg_scale: 5,
@@ -50,67 +55,113 @@ async function generateImage(prompt, apiKey) {
       const fileName = `generated_image_${timestamp}.png`;
       fs.writeFileSync(fileName, Buffer.from(imageData, 'base64'));
       console.log(`Gambar berhasil disimpan sebagai: ${fileName}`);
-
-      // Tambahkan nama file ke image.txt
       fs.appendFileSync('image.txt', `${fileName}\n`);
-      // Tambahkan prompt ke prompt.txt
-      fs.appendFileSync('prompt.txt', `${prompt}\n`);
-      console.log(`Prompt dan nama file ditambahkan ke file log`);
+      fs.appendFileSync('prompt_log.txt', `Image: ${prompt}\n`);
       return true;
     } else {
       console.log('Tidak ada gambar yang dihasilkan.');
       return false;
     }
   } catch (error) {
-    console.error('Error:', error.response?.status === 401 ? 'API Key tidak valid' : 'Kesalahan saat memproses');
+    console.error('Error (Image):', error.response?.status === 401 ? 'API Key tidak valid' : 'Kesalahan saat memproses');
     return false;
   }
 }
 
-// Fungsi untuk mendapatkan jeda acak dalam milidetik (5-10 menit)
-function getRandomDelay() {
-  const min = 5 * 60 * 1000; // 5 menit dalam ms
-  const max = 10 * 60 * 1000; // 10 menit dalam ms
+// Fungsi untuk menghasilkan audio
+async function generateAudio(prompt, apiKey) {
+  const url = "https://api.hyperbolic.xyz/v1/audio/generation";
+  const headers = {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${apiKey}`
+  };
+  const data = {
+    text: prompt,
+    speed: 1
+  };
+
+  try {
+    console.log(`Menghasilkan audio dengan prompt: "${prompt}"...`);
+    const response = await axios.post(url, data, { headers });
+    const audioData = response.data.audio;
+
+    if (audioData) {
+      const timestamp = Date.now();
+      const fileName = `generated_audio_${timestamp}.mp3`;
+      fs.writeFileSync(fileName, Buffer.from(audioData, 'base64'));
+      console.log(`Audio berhasil disimpan sebagai: ${fileName}`);
+      fs.appendFileSync('audio.txt', `${fileName}\n`);
+      fs.appendFileSync('prompt_log.txt', `Audio: ${prompt}\n`);
+      return true;
+    } else {
+      console.log('Tidak ada audio yang dihasilkan.');
+      return false;
+    }
+  } catch (error) {
+    console.error('Error (Audio):', error.response?.status === 401 ? 'API Key tidak valid' : 'Kesalahan saat memproses');
+    return false;
+  }
+}
+
+// Fungsi untuk mendapatkan jeda acak
+function getRandomDelay(minMinutes, maxMinutes) {
+  const min = minMinutes * 60 * 1000;
+  const max = maxMinutes * 60 * 1000;
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
 // Fungsi utama untuk otomatisasi
 async function runAutomation(apiKey) {
-  let imageCount = 0;
-
   while (true) {
-    if (imageCount >= 100) {
-      console.log('Mencapai batas 100 gambar, menunggu 24 jam...');
-      await new Promise(resolve => setTimeout(resolve, 24 * 60 * 60 * 1000)); // Jeda 24 jam
-      imageCount = 0; // Reset hitungan
+    // Fase Gambar: 100 gambar, jeda 4-7 menit
+    let imageCount = 0;
+    console.log('Memulai fase generasi gambar...');
+    while (imageCount < 100) {
+      const randomPrompt = getRandomPrompt();
+      const success = await generateImage(randomPrompt, apiKey);
+
+      if (success) {
+        imageCount++;
+        console.log(`Gambar ke-${imageCount} dari 100 telah dibuat.`);
+      }
+
+      const delay = getRandomDelay(4, 7);
+      console.log(`Menunggu ${(delay / 60000).toFixed(2)} menit sebelum gambar berikutnya...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
     }
 
-    // Pilih prompt acak dari daftar
-    const randomPrompt = prompts[Math.floor(Math.random() * prompts.length)];
-    const success = await generateImage(randomPrompt, apiKey);
+    // Fase Audio: 450 audio, jeda 1-2 menit
+    let audioCount = 0;
+    console.log('Fase gambar selesai. Memulai fase generasi audio...');
+    while (audioCount < 450) {
+      const randomPrompt = getRandomPrompt();
+      const success = await generateAudio(randomPrompt, apiKey);
 
-    if (success) {
-      imageCount++;
-      console.log(`Gambar ke-${imageCount} dari 100 telah dibuat.`);
+      if (success) {
+        audioCount++;
+        console.log(`Audio ke-${audioCount} dari 450 telah dibuat.`);
+      }
+
+      const delay = getRandomDelay(1, 2);
+      console.log(`Menunggu ${(delay / 60000).toFixed(2)} menit sebelum audio berikutnya...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
     }
 
-    // Tunggu jeda acak antara 5-10 menit
-    const delay = getRandomDelay();
-    console.log(`Menunggu ${(delay / 60000).toFixed(2)} menit sebelum gambar berikutnya...`);
-    await new Promise(resolve => setTimeout(resolve, delay));
+    // Jeda 24 jam setelah selesai kedua fase
+    console.log('Semua fase selesai, menunggu 24 jam sebelum memulai kembali...');
+    await new Promise(resolve => setTimeout(resolve, 24 * 60 * 60 * 1000));
   }
 }
 
 // Fungsi mulai
 function main() {
-  // Ambil API key dari environment
   const apiKey = process.env.HYPERBOLIC_API_KEY;
   if (!apiKey) {
     console.error('Error: HYPERBOLIC_API_KEY tidak ditemukan di .env');
     process.exit(1);
   }
 
-  console.log('Bot Generasi Gambar Hyperbolic (SD2) dimulai...');
+  console.log('Bot Generasi Gambar dan Audio Hyperbolic dimulai...');
   runAutomation(apiKey);
 }
 

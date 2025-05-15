@@ -103,54 +103,50 @@ async function generateAudio(prompt, apiKey) {
   }
 }
 
-// Fungsi untuk mendapatkan jeda acak
-function getRandomDelay(minMinutes, maxMinutes) {
-  const min = minMinutes * 60 * 1000;
-  const max = maxMinutes * 60 * 1000;
+// Fungsi untuk mendapatkan jeda acak antara 90 hingga 150 detik
+function getRandomDelay() {
+  const min = 90 * 1000; // 90 detik
+  const max = 150 * 1000; // 150 detik
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
 // Fungsi utama untuk otomatisasi
 async function runAutomation(apiKey) {
-  while (true) {
-    // Fase Gambar: 100 gambar, jeda 4-7 menit
-    let imageCount = 0;
-    console.log('Memulai fase generasi gambar...');
-    while (imageCount < 100) {
-      const randomPrompt = getRandomPrompt();
-      const success = await generateImage(randomPrompt, apiKey);
+  // Fase Gambar: 100 gambar, jeda 90-150 detik
+  let imageCount = 0;
+  console.log('Memulai fase generasi gambar...');
+  while (imageCount < 100) {
+    const randomPrompt = getRandomPrompt();
+    const success = await generateImage(randomPrompt, apiKey);
 
-      if (success) {
-        imageCount++;
-        console.log(`Gambar ke-${imageCount} dari 100 telah dibuat.`);
-      }
-
-      const delay = getRandomDelay(4, 7);
-      console.log(`Menunggu ${(delay / 60000).toFixed(2)} menit sebelum gambar berikutnya...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
+    if (success) {
+      imageCount++;
+      console.log(`Gambar ke-${imageCount} dari 100 telah dibuat.`);
     }
 
-    // Fase Audio: 450 audio, jeda 1-2 menit
-    let audioCount = 0;
-    console.log('Fase gambar selesai. Memulai fase generasi audio...');
-    while (audioCount < 450) {
-      const randomPrompt = getRandomPrompt();
-      const success = await generateAudio(randomPrompt, apiKey);
-
-      if (success) {
-        audioCount++;
-        console.log(`Audio ke-${audioCount} dari 450 telah dibuat.`);
-      }
-
-      const delay = getRandomDelay(1, 2);
-      console.log(`Menunggu ${(delay / 60000).toFixed(2)} menit sebelum audio berikutnya...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
-    }
-
-    // Jeda 24 jam setelah selesai kedua fase
-    console.log('Semua fase selesai, menunggu 24 jam sebelum memulai kembali...');
-    await new Promise(resolve => setTimeout(resolve, 24 * 60 * 60 * 1000));
+    const delay = getRandomDelay();
+    console.log(`Menunggu ${(delay / 1000).toFixed(2)} detik sebelum gambar berikutnya...`);
+    await new Promise(resolve => setTimeout(resolve, delay));
   }
+
+  // Fase Audio: 450 audio, jeda 90-150 detik
+  let audioCount = 0;
+  console.log('Fase gambar selesai. Memulai fase generasi audio...');
+  while (audioCount < 450) {
+    const randomPrompt = getRandomPrompt();
+    const success = await generateAudio(randomPrompt, apiKey);
+
+    if (success) {
+      audioCount++;
+      console.log(`Audio ke-${audioCount} dari 450 telah dibuat.`);
+    }
+
+    const delay = getRandomDelay();
+    console.log(`Menunggu ${(delay / 1000).toFixed(2)} detik sebelum audio berikutnya...`);
+    await new Promise(resolve => setTimeout(resolve, delay));
+  }
+
+  console.log('Semua fase selesai. Bot berhenti.');
 }
 
 // Fungsi mulai
